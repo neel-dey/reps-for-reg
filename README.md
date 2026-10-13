@@ -8,21 +8,20 @@
 
 *From left to right: the CT scans before and after registration, the PET
 scans before and after registration, and the deformation. In each overlay,
-one scan is green and the other scan is magenta. Aligned structures are
-grey.*
+one scan is green and the other scan is magenta.*
 
 This repository registers a follow-up PET/CT scan to a baseline PET/CT scan
 of the same patient. It returns the displacement field and the moved CT and
 PET scans. Many of the choices below are specific to the PSMAReg challenge
 (e.g., producing displacements in voxels instead of physical coordinates).
-For a general and better functional registration interface, use
+For a general and better registration interface, use
 [this repo](https://github.com/neel-dey/anatomix/tree/main/anatomix/registration)
 instead.
 
 ## Installation
 
 Make and activate a new environment with Python 3.10 to 3.13, with the tool
-of your choice (for example conda, micromamba, venv or uv). Then run:
+of your choice (conda, micromamba, venv or uv). Then run:
 
 ```bash
 git clone https://github.com/neel-dey/reps-for-reg.git
@@ -148,14 +147,15 @@ low.
   2.7344 x 2.7344 x 3.27 mm. An axis with voxels smaller than half of this
   size is resampled to this size first. The `grid` settings change these
   values.
-* Each axis needs at least 32 voxels after this step.
 * The outputs are on the grid of the baseline CT file. The field points to
   the voxels of the follow-up files as they are stored.
-* When the two scans have different grids, `x` counts baseline voxels and
-  `x + u(x)` counts follow-up voxels. Thus a transform that moves no point
-  has a field that is not zero. `regrep evaluate` corrects for this.
 
 ## Single/multi-GPU execution modes
+
+On one GPU, a registration of a PSMAReg pair needs approximately 42 GB of
+GPU memory. More GPUs make a registration faster. The segmentation can run
+on its own GPU, and regrep can divide the largest steps over several GPUs
+(see the table below).
 
 `--gpus` selects the GPUs (default: all visible GPUs). The indices are those
 that `nvidia-smi` shows. When `CUDA_VISIBLE_DEVICES` is set, they count the
@@ -169,9 +169,12 @@ steps use the GPUs:
 * `auto` (default): `concurrent` if the GPUs have sufficient memory for it,
   else `serial`.
 
-When a registration stage does not fit on one GPU, regrep divides its image
-loss into channel chunks. The chunks can go to different GPUs.
-`--chunk-stage1` and `--chunk-stage2` set the chunk size.
+Each registration stage compares many image channels of the two scans: the
+CT, the PET and the feature channels (46 channels in stage 1). When a stage
+does not fit on one GPU, regrep computes its image loss on a part of the
+channels at a time (a chunk) and adds the results. Different chunks can run
+on different GPUs. `--chunk-stage1` and `--chunk-stage2` set the number of
+channels in a chunk.
 
 Measured on 46 GB NVIDIA L40S GPUs, with pairs of 192 x 192 x 288 voxels:
 
@@ -209,7 +212,6 @@ method.
 | `regrep/registration/` | the chunked FireANTs optimizer, stage 1, stage 2 and their losses |
 | `regrep/posthoc/` | volume projection, fold measure and repair, field export |
 | `regrep/evaluation/` | the challenge metrics |
-| `tests/` | unit tests that need no data (`pytest`) |
 
 ## Citation
 
