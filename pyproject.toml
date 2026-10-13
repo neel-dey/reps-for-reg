@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "regrep"
+version = "1.0.0"
+description = "Longitudinal whole-body PSMA PET/CT registration (winning method of Learn2Reg 2026 PSMAReg)"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10,<3.14"
+# torch, FireANTs (with fireants_fused_ops) and lionz (with its dependencies,
+# among them dask) are installed by install.sh: torch needs the CUDA build that
+# matches the driver, FireANTs is installed from a clone of its main branch, and
+# lionz pins an old torch, so it goes in without its dependencies. regrep calls
+# internal functions of TotalSegmentator and nnU-Net, so their versions are
+# limited to those it was tested with.
+dependencies = [
+    "anatomix @ git+https://github.com/neel-dey/anatomix.git@main",
+    "TotalSegmentator>=2.17,<3",
+    "nnunetv2==2.8.1",
+    "acvl_utils",
+    "huggingface_hub",
+    "nibabel",
+    "numpy",
+    "scipy",
+    "SimpleITK",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.scripts]
+regrep = "regrep.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["regrep*"]
+
+[tool.setuptools.package-data]
+regrep = ["data/*.json"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "B", "UP"]
+ignore = ["N803", "N806", "N812"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

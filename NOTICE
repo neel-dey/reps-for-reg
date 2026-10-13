@@ -1,0 +1,86 @@
+regrep
+Copyright (c) 2026 Neel Dey
+
+regrep is licensed under the MIT License (see LICENSE). The files listed
+below contain code adapted from other projects. Each Python file below has a
+header that names its origin, quotes the copyright lines that the origin
+states, and lists the changes; the entries below summarize them. The license
+of each origin applies to the parts adapted from it.
+
+regrep/registration/chunked.py
+    Adapted from FireANTs, fireants/registration/greedy.py
+    https://github.com/rohitrango/FireANTs (regrep installs the main branch
+    of the fork https://github.com/neel-dey/FireANTs)
+    "Copyright (c) 2026 Rohit Jena."
+    License: Apache-2.0
+    Adapted parts: the optimization loop of GreedyRegistration.optimize, in
+    ChunkedGreedyRegistration.optimize.
+
+regrep/segmentation/totalseg.py
+    Adapted from TotalSegmentator (Jakob Wasserthal)
+    https://github.com/wasserth/TotalSegmentator
+    The TotalSegmentator repository states no copyright line.
+    License: Apache-2.0
+    and from nnU-Net
+    https://github.com/MIC-DKFZ/nnUNet
+    "Copyright [2019] [Division of Medical Image Computing, German Cancer
+    Research Center (DKFZ), Heidelberg, Germany]" (nnU-Net LICENSE file) and
+    "Copyright 2021 HIP Applied Computer Vision Lab, Division of Medical
+    Image Computing, German Cancer Research Center (DKFZ), Heidelberg,
+    Germany" (nnunetv2/imageio/nibabel_reader_writer.py)
+    License: Apache-2.0
+    Adapted parts: the resampling of cropped logits to the native grid, the
+    input and output resampling of the CT, the crop to a coarse segmentation,
+    the merge of the part models, and an in-memory version of nnU-Net's NIfTI
+    reader.
+
+regrep/segmentation/lion.py
+    Adapted from LION (lionz; Lalith Kumar Shiyam Sundar, Sebastian
+    Gutschmayer and Manuel Pires)
+    https://github.com/ENHANCE-PET/LION
+    The LION repository states no copyright line.
+    License: Apache-2.0
+    and from nnU-Net
+    https://github.com/MIC-DKFZ/nnUNet
+    "Copyright [2019] [Division of Medical Image Computing, German Cancer
+    Research Center (DKFZ), Heidelberg, Germany]" (nnU-Net LICENSE file)
+    License: Apache-2.0
+    Adapted parts: the steps of lionz's lion_segment, called for one PET
+    volume at a time, and the mirror loop of nnU-Net's nnUNetPredictor.
+
+regrep/features/mind.py
+    Adapted from the MINDSSC function of ConvexAdam (Hanna Siebert, Lasse
+    Hansen and Mattias P. Heinrich)
+    https://github.com/multimodallearning/convexAdam
+    The ConvexAdam repository states no copyright line.
+    License: Apache-2.0
+    regrep took the function from the copy in anatomix
+    (anatomix/registration/registration_infrastructure/mindssc.py,
+    https://github.com/neel-dey/anatomix; MIT License, Copyright 2024 Neel
+    Dey), which says that it is adapted from ConvexAdam. The descriptor is
+    MIND-SSC of Heinrich et al. (MICCAI 2013).
+    Adapted parts: the MIND-SSC computation, which regrep runs in slabs.
+
+regrep/features/anatomix.py
+    Adapted from MONAI 1.6.0, "Copyright (c) MONAI Consortium"
+    https://github.com/Project-MONAI/MONAI
+    License: Apache-2.0
+    Adapted parts: the sliding-window geometry, the padding and the Gaussian
+    importance map (_scan_interval, _window_starts, _window_padding,
+    _importance_map), from monai/inferers/utils.py and monai/data/utils.py.
+
+regrep/evaluation/surface_distance.py
+    Adapted from surface-distance, "Copyright 2018 Google Inc. All Rights
+    Reserved."
+    https://github.com/google-deepmind/surface-distance
+    License: Apache-2.0
+    Adapted parts: the 3-D surface distance, robust Hausdorff distance and
+    Dice functions, and the surfel area table they use.
+
+regrep/data/totalseg_class_map.json
+    A copy of the class table of the TotalSegmentator "total" task
+    (totalsegmentator.map_to_binary.class_map["total"]).
+    https://github.com/wasserth/TotalSegmentator
+    License: Apache-2.0
+
+The text of the Apache License, Version 2.0 is in the file LICENSE-APACHE.
