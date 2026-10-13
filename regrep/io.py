@@ -81,6 +81,50 @@ class PairInputs:
     moving_pet: str
 
 
+@dataclass(frozen=True)
+class PairOutputs:
+    """The files that one registration writes, all in one folder.
+
+    The folder is made when the files are written.
+    """
+
+    folder: str
+
+    @property
+    def field(self) -> str:
+        """The displacement field."""
+        return os.path.join(self.folder, "field.nii.gz")
+
+    @property
+    def moved_ct(self) -> str:
+        """The moving CT on the grid of the fixed CT."""
+        return os.path.join(self.folder, "moved_ct.nii.gz")
+
+    @property
+    def moved_pet(self) -> str:
+        """The moving PET on the grid of the fixed CT."""
+        return os.path.join(self.folder, "moved_pet.nii.gz")
+
+    def files(self) -> tuple[str, str, str]:
+        """All output files, in the order in which they are written."""
+        return (self.moved_ct, self.moved_pet, self.field)
+
+    def exist(self) -> bool:
+        """Whether all output files exist."""
+        return all(os.path.exists(path) for path in self.files())
+
+    def check(self, inputs) -> None:
+        """Raise a ``ValueError`` if the outputs cannot be written safely.
+
+        This is the case when the folder is a file, or when an output file is
+        one of the input files (:func:`check_output`).
+        """
+        if os.path.exists(self.folder) and not os.path.isdir(self.folder):
+            raise ValueError(f"the output folder {self.folder} is a file")
+        for path in self.files():
+            check_output(path, inputs)
+
+
 def voxel_size(affine: np.ndarray) -> tuple[float, float, float]:
     """Return the voxel size in mm along each array axis of an affine.
 

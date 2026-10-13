@@ -12,7 +12,6 @@ from __future__ import annotations
 import csv
 import logging
 import multiprocessing
-import os
 import queue
 import time
 from dataclasses import dataclass
@@ -38,12 +37,14 @@ class BatchSettings:
 def read_pairs(path: str) -> list[dict[str, str]]:
     """Read the pair table and check it.
 
-    The paths are relative to the current directory, and spaces around them
-    are removed. A ``ValueError`` is raised if a column is missing, an entry
-    is empty, two rows write the same file, or an output is an input file of
-    any row (``regrep.io.file_key`` decides when two paths are one file).
+    The ``output`` column names the output folder of each pair
+    (``regrep.io.PairOutputs``). The paths are relative to the current
+    directory, and spaces around them are removed. A ``ValueError`` is
+    raised if a column is missing, an entry is empty, two rows have the same
+    output folder, or an output file is an input file of any row
+    (``regrep.io.file_key`` decides when two paths are one file).
     """
-    from regrep.io import file_key
+    from regrep.io import PairOutputs, file_key
 
     with open(path, newline="") as handle:
         rows = list(csv.DictReader(handle))
@@ -58,20 +59,21 @@ def read_pairs(path: str) -> list[dict[str, str]]:
             raise ValueError(f"{path}, line {number}: empty {empty}")
     pairs = [{c: row[c].strip() for c in PAIR_COLUMNS} for row in rows]
 
-    outputs: dict[tuple, int] = {}
+    folders: dict[tuple, int] = {}
     for number, pair in enumerate(pairs, start=2):
         key = file_key(pair["output"])
-        if key in outputs:
-            raise ValueError(f"{path}, lines {outputs[key]} and {number}: two pairs "
-                             "write the same file")
-        outputs[key] = number
+        if key in folders:
+            raise ValueError(f"{path}, lines {folders[key]} and {number}: two pairs "
+                             "have the same output folder")
+        folders[key] = number
     inputs = {file_key(pair[c]): (number, pair[c])
               for number, pair in enumerate(pairs, start=2) for c in INPUT_COLUMNS}
-    for key, number in outputs.items():
-        if key in inputs:
-            line, name = inputs[key]
-            raise ValueError(f"{path}, line {number}: the output is the input file "
-                             f"{name} of line {line}")
+    for number, pair in enumerate(pairs, start=2):
+        for output in PairOutputs(pair["output"]).files():
+            if file_key(output) in inputs:
+                line, name = inputs[file_key(output)]
+                raise ValueError(f"{path}, line {number}: the output {output} is "
+                                 f"the input file {name} of line {line}")
     return pairs
 
 
@@ -139,8 +141,8 @@ def run_batch(pairs: list[dict[str, str]], gpus: str | None, gpus_per_pair: int,
     config_path
         YAML or JSON file of setting overrides.
     overwrite
-        Register pairs whose output file exists already. Without it they are
-        skipped.
+        Register pairs whose output files all exist already. Without it they
+        are skipped.
     keep_workspace
         Keep the workspace of each pair.
     verbose
@@ -149,10 +151,11 @@ def run_batch(pairs: list[dict[str, str]], gpus: str | None, gpus_per_pair: int,
     Returns
     -------
     dict
-        The failed pairs: output path to error message. Empty when every pair
-        succeeded.
+        The failed pairs: output folder to error message. Empty when every
+        pair succeeded.
     """
     from regrep import runtime
+    from regrep.io import PairOutputs
 
     indices = runtime.gpu_indices(gpus)
     if gpus_per_pair < 1 or gpus_per_pair > len(indices):
@@ -162,8 +165,8 @@ def run_batch(pairs: list[dict[str, str]], gpus: str | None, gpus_per_pair: int,
 
     todo = []
     for pair in pairs:
-        if not overwrite and os.path.exists(pair["output"]):
-            log.info("skip %s: the output exists", pair["output"])
+        if not overwrite and PairOutputs(pair["output"]).exist():
+            log.info("skip %s: the outputs exist", pair["output"])
         else:
             todo.append(pair)
     if not todo:

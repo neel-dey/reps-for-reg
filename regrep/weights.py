@@ -4,8 +4,8 @@ There are three sets of weights:
 
 * anatomix (the variant in ``FeatureConfig.backbone``), downloaded from the
   HuggingFace Hub into the HuggingFace cache (``HF_HOME``). It is loaded with
-  anatomix's ``load_from_hf``. Set ``HF_HUB_OFFLINE=1`` to keep the Hub from
-  being contacted when the file is already in the cache.
+  anatomix's ``load_from_hf``, which uses the cached file when the Hub cannot
+  be reached.
 * The seven TotalSegmentator models of the ``total`` task, in
   TotalSegmentator's weights folder (``TOTALSEG_WEIGHTS_PATH``, else
   ``TOTALSEG_HOME_DIR/nnunet/results``, else

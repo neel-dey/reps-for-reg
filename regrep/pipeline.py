@@ -1,4 +1,4 @@
-"""The registration of one pair, from the four input files to the field.
+"""The registration of one pair, from the four input files to the outputs.
 
 :func:`register_pair` runs these steps:
 
@@ -18,12 +18,15 @@
    LION mask, and apply the volume projection to the stage-1 transform.
 7. Run stage 2 with the label maps and the LION masks of both timepoints.
 8. Apply the final volume projection, the low pass and the fold repair,
-   bring the field to the grid of the fixed CT file and the voxels of the
-   moving CT file, and write it.
+   and bring the field to the grid of the fixed CT file and the voxels of
+   the moving CT file.
+9. Warp the moving CT and PET files with the field, and write them and the
+   field to the output folder (``regrep.io.PairOutputs``).
 
-The field is written once, at the end, with an atomic rename. On any error
-the worker processes are stopped, the workspace is removed (unless it is
-kept), no output file is written and the error is raised again.
+The outputs are written at the end, each with an atomic rename. On any
+error the worker processes are stopped, the workspace is removed (unless it
+is kept), the output files of this call are removed and the error is raised
+again.
 
 The memory figures of the plan assume the ``expandable_segments`` setting
 of PyTorch's CUDA allocator (``PYTORCH_CUDA_ALLOC_CONF``), which the command
@@ -49,10 +52,10 @@ import torch
 from regrep.config import ChainConfig, GridConfig
 from regrep.io import (
     PairInputs,
+    PairOutputs,
     Volume,
     Workspace,
     check_axis_lengths,
-    check_output,
     load_volume,
     orient_like,
     same_grid,
@@ -274,7 +277,7 @@ class _WorkerMaps:
 
 
 def _read_inputs(inputs: PairInputs, cfg: GridConfig
-                 ) -> tuple[Volume, tuple[Volume, Volume, Volume, Volume]]:
+                 ) -> tuple[tuple[Volume, ...], tuple[Volume, Volume, Volume, Volume]]:
     """Read the four volumes and bring them to the working grids.
 
     Each CT and PET must share one grid (``regrep.io.same_grid``); the fixed
@@ -289,8 +292,9 @@ def _read_inputs(inputs: PairInputs, cfg: GridConfig
     Returns
     -------
     tuple
-        The fixed CT as read, whose grid is the grid of the output field, and
-        the fixed CT and PET and the moving CT and PET on the working grids.
+        The fixed CT and PET and the moving CT and PET as read (the grid of
+        the fixed CT is the grid of the outputs), and the same four volumes
+        on the working grids.
     """
     volumes = tuple(load_volume(path) for path in (
         inputs.fixed_ct, inputs.fixed_pet, inputs.moving_ct, inputs.moving_pet))
@@ -311,8 +315,8 @@ def _read_inputs(inputs: PairInputs, cfg: GridConfig
                      _size(np.linalg.norm(grid[1][:3, :3], axis=0)))
         working += [to_working_grid(ct, grid), to_working_grid(pet, grid)]
     fixed_ct, fixed_pet, moving_ct, moving_pet = working
-    return volumes[0], (fixed_ct, fixed_pet, orient_like(moving_ct, fixed_ct.affine),
-                        orient_like(moving_pet, fixed_ct.affine))
+    return volumes, (fixed_ct, fixed_pet, orient_like(moving_ct, fixed_ct.affine),
+                     orient_like(moving_pet, fixed_ct.affine))
 
 
 def _size(values) -> str:
@@ -344,10 +348,10 @@ def _empty_cache(devices) -> None:
             torch.cuda.empty_cache()
 
 
-def register_pair(inputs: PairInputs, output_path: str, plan: RunPlan,
+def register_pair(inputs: PairInputs, output_dir: str, plan: RunPlan,
                   config: ChainConfig | None = None, keep_workspace: bool = False,
                   models: Models | None = None) -> float:
-    """Register one pair and write the displacement field.
+    """Register one pair; write the field and the moved CT and PET.
 
     The call changes process-wide state of torch and does not restore it: it
     seeds the global random generators of Python, NumPy and torch, makes
@@ -358,11 +362,18 @@ def register_pair(inputs: PairInputs, output_path: str, plan: RunPlan,
     ----------
     inputs
         The fixed (baseline) and moving (follow-up) CT and PET files.
-    output_path
-        The field file to write: ``(3, X, Y, Z)`` float32 on the grid of the
-        fixed CT file, a displacement in voxels: fixed voxel ``x`` maps to
-        voxel ``x + u(x)`` of the moving CT file. It must not be one of the
-        input files.
+    output_dir
+        The folder for the outputs (``regrep.io.PairOutputs``):
+
+        * ``field.nii.gz``: ``(3, X, Y, Z)`` float32 on the grid of the fixed
+          CT file, a displacement in voxels: fixed voxel ``x`` maps to voxel
+          ``x + u(x)`` of the moving CT file,
+        * ``moved_ct.nii.gz`` and ``moved_pet.nii.gz``: the moving CT and PET
+          warped with the field (trilinear), on the grid of the fixed CT
+          file. Where the warp leaves the moving volume, the moved CT has the
+          lowest value of the moving CT and the moved PET has 0.
+
+        No output file may be one of the input files.
     plan
         The run plan from ``regrep.runtime.plan``.
     config
@@ -380,8 +391,9 @@ def register_pair(inputs: PairInputs, output_path: str, plan: RunPlan,
     """
     from regrep.registration.chunked import check_fused_ops
 
-    check_output(output_path, (inputs.fixed_ct, inputs.fixed_pet, inputs.moving_ct,
-                               inputs.moving_pet))
+    outputs = PairOutputs(output_dir)
+    outputs.check((inputs.fixed_ct, inputs.fixed_pet, inputs.moving_ct,
+                   inputs.moving_pet))
     config = config if config is not None else ChainConfig()
     models = models if models is not None else Models()
     devices = list(dict.fromkeys(
@@ -389,6 +401,7 @@ def register_pair(inputs: PairInputs, output_path: str, plan: RunPlan,
     clock = _Clock(devices)
     started = time.perf_counter()
     workspace = maps = None
+    written = []
     log.info("plan: %s", plan.describe())
     try:
         torch.cuda.set_device(plan.main_device)
@@ -405,8 +418,9 @@ def register_pair(inputs: PairInputs, output_path: str, plan: RunPlan,
                                child_environment(plan.segmentation_device,
                                                  os.environ))
         with clock.step("read"):
-            fixed_file, (fixed_ct, fixed_pet, moving_ct, moving_pet) = _read_inputs(
+            files, (fixed_ct, fixed_pet, moving_ct, moving_pet) = _read_inputs(
                 inputs, config.grid)
+        fixed_file = files[0]
         if plan.mode == "serial":
             maps = _InProcessMaps()
             with clock.step("segment organs"):
@@ -423,12 +437,19 @@ def register_pair(inputs: PairInputs, output_path: str, plan: RunPlan,
         maps.wait_exit()
         worker_log = maps.log_lines()
         with clock.step("write"):
-            from regrep.posthoc.export import write_field
+            from regrep.posthoc.export import warp_to_fixed, write_field, write_moved
 
-            write_field(output_path, field, fixed_file)
+            for path, moving_file, fill in (
+                    (outputs.moved_ct, files[2], float(files[2].array.min())),
+                    (outputs.moved_pet, files[3], 0.0)):
+                moved = warp_to_fixed(moving_file, field, fill, plan.main_device)
+                written.append(write_moved(path, moved, fixed_file))
+            written.append(write_field(outputs.field, field, fixed_file))
     except BaseException:
         if maps is not None:
             maps.stop()
+        for path in written:
+            os.remove(path)
         raise
     finally:
         if workspace is not None:
@@ -436,7 +457,7 @@ def register_pair(inputs: PairInputs, output_path: str, plan: RunPlan,
     seconds = time.perf_counter() - started
     for line in worker_log:
         log.info("%s", line)
-    log.info("done in %.1f s: %s", seconds, output_path)
+    log.info("done in %.1f s: %s", seconds, output_dir)
     return seconds
 
 

@@ -15,7 +15,8 @@ working grids (``regrep.io.working_grid``):
 ``resample_field`` and ``to_file_voxels`` then bring the field from the
 working grids to the grid of the fixed CT file and the voxels of the moving
 CT file. ``write_field`` stores the result in the layout of the challenge
-template.
+template. ``warp_to_fixed`` and ``write_moved`` warp the moving CT and PET
+files with this field and store them on the grid of the fixed CT file.
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ from regrep.registration.transforms import (
     box_radii,
     dilate_box,
     grid_to_disp,
+    spatial_transform,
 )
 
 log = logging.getLogger(__name__)
@@ -323,3 +325,37 @@ def write_field(path: str, field: np.ndarray, fixed_ct: Volume) -> str:
     template = nib.Nifti1Image(field, np.eye(4))
     template.header["pixdim"][1:4] = fixed_ct.spacing
     return save_nifti(path, field, np.eye(4), template.header)
+
+
+def warp_to_fixed(volume: Volume, field: np.ndarray, fill: float,
+                  device: torch.device) -> np.ndarray:
+    """Warp a moving file onto the grid of the fixed CT file.
+
+    Parameters
+    ----------
+    volume
+        The moving CT or PET as read from its file.
+    field
+        The ``(3, X, Y, Z)`` output field: on the grid of the fixed CT file,
+        in the voxels of the moving files.
+    fill
+        The value of the fixed voxels that map outside the moving volume.
+    device
+        The device of the warp.
+
+    Returns
+    -------
+    np.ndarray
+        The float32 ``(X, Y, Z)`` moved volume, interpolated trilinearly.
+    """
+    disp = torch.from_numpy(np.moveaxis(field, 0, -1).copy()).to(device)
+    # The warp fills with zeros, so the volume is shifted to make fill zero.
+    shifted = torch.from_numpy(volume.array).to(device) - fill
+    moved = spatial_transform(shifted, disp, "bilinear") + fill
+    return moved.cpu().numpy()
+
+
+def write_moved(path: str, moved: np.ndarray, fixed_ct: Volume) -> str:
+    """Write a moved volume as float32, with the affine of the fixed CT file."""
+    return save_nifti(path, np.ascontiguousarray(moved, dtype=np.float32),
+                      fixed_ct.affine)

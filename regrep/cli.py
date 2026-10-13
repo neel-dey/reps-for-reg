@@ -2,15 +2,15 @@
 
 .. code-block:: text
 
-    regrep register FIXED_CT FIXED_PET MOVING_CT MOVING_PET OUTPUT [options]
+    regrep register FIXED_CT FIXED_PET MOVING_CT MOVING_PET OUTPUT_DIR [options]
     regrep register-batch PAIRS_CSV [options]
     regrep download-weights
     regrep evaluate --field FIELD --fixed-ct ... | --csv FIELDS_CSV [options]
 
-``register`` follows the five-argument interface of the PSMAReg challenge:
-the baseline CT and PET are the fixed images, the follow-up CT and PET the
-moving images, and OUTPUT receives the displacement field. A failed
-registration writes no file and exits with status 1.
+``register`` takes the baseline CT and PET as the fixed images and the
+follow-up CT and PET as the moving images, as in the PSMAReg challenge. It
+writes the displacement field and the moved CT and PET to OUTPUT_DIR. A
+failed registration leaves no output file and exits with status 1.
 """
 
 from __future__ import annotations
@@ -85,14 +85,16 @@ def _parser() -> argparse.ArgumentParser:
     register = commands.add_parser(
         "register", help="register one pair",
         description="Register the follow-up (moving) CT and PET to the baseline "
-                    "(fixed) CT and PET and write the displacement field.")
+                    "(fixed) CT and PET. Write the displacement field and the "
+                    "moved CT and PET.")
     for name, text in (("fixed_ct", "baseline CT (the fixed image)"),
                        ("fixed_pet", "baseline PET (the fixed image)"),
                        ("moving_ct", "follow-up CT (the moving image)"),
                        ("moving_pet", "follow-up PET (the moving image)")):
         register.add_argument(name, metavar=name.upper(), help=text)
-    register.add_argument("output", metavar="OUTPUT",
-                          help="the displacement field to write (.nii.gz)")
+    register.add_argument("output", metavar="OUTPUT_DIR",
+                          help="the folder for field.nii.gz, moved_ct.nii.gz and "
+                               "moved_pet.nii.gz")
     _add_run_options(register)
 
     batch = commands.add_parser(
@@ -104,7 +106,7 @@ def _parser() -> argparse.ArgumentParser:
     batch.add_argument("--gpus-per-pair", type=int, default=1,
                        help="GPUs per pair (default: 1)")
     batch.add_argument("--overwrite", action="store_true",
-                       help="register pairs whose output exists already")
+                       help="register pairs whose outputs exist already")
     _add_run_options(batch)
 
     download = commands.add_parser(
