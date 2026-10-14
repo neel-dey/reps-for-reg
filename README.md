@@ -2,7 +2,7 @@
 
 # reps-for-reg
 
-### [Project page](https://www.neeldey.com/reps-for-reg/) | [Workshop talk](https://youtu.be/H51kyUb5Jog) | [Learn2Reg challenge](https://learn2reg.grand-challenge.org/) | [anatomix registration](https://github.com/neel-dey/anatomix/tree/main/anatomix/registration)
+### [Paper](https://arxiv.org/abs/2610.18804) | [Project page](https://www.neeldey.com/reps-for-reg/) | [Workshop talk](https://youtu.be/H51kyUb5Jog) | [Learn2Reg challenge](https://learn2reg.grand-challenge.org/) | [anatomix registration](https://github.com/neel-dey/anatomix/tree/main/anatomix/registration)
 
 ![CT and PET of training pair 0028 before and after registration, and the deformation](https://www.neeldey.com/reps-for-reg/media/readme_highlight.jpg)
 
@@ -215,7 +215,21 @@ method.
 
 ## Citation
 
-regrep uses these works. Please cite them:
+If you use regrep, please cite our paper:
+
+```bibtex
+@misc{dey2026registrationrepresentationproblemsolving,
+      title={Registration is a Representation Problem: Solving Whole-Body PET/CT Registration},
+      author={Neel Dey and Adrian V. Dalca},
+      year={2026},
+      eprint={2610.18804},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2610.18804},
+}
+```
+
+regrep also uses these works. Please cite them too:
 
 ```bibtex
 @misc{dey2024learninggeneralpurposebiomedicalvolume,
